@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Créditos Rombo – Análisis Financiero</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --rombo-dark:#0D2B4E; --rombo-blue:#1A5EA8; --rombo-light:#3B9BF0;
+  --approved:#00C48C; --rejected:#FF5C6C; --warning:#FFB547;
+  --bg:#F0F4FA; --card:#fff; --text:#1a2332; --muted:#6b7a99;
+  --border:#dde3ef; --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:linear-gradient(135deg,var(--rombo-dark),var(--rombo-blue));color:#fff;padding:20px 32px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.5rem;font-weight:700;flex:1}
+#header-badge{background:rgba(255,255,255,.18);border-radius:20px;padding:4px 14px;font-size:.82rem;white-space:nowrap}
+main{max-width:1400px;margin:0 auto;padding:24px 16px}
+.section{margin-bottom:32px}
+.section-title{font-size:1.15rem;font-weight:700;color:var(--rombo-dark);margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--rombo-light)}
+/* Upload */
+#upload-area{border:2.5px dashed var(--rombo-light);border-radius:var(--radius);background:#eaf3ff;padding:40px;text-align:center;cursor:pointer;transition:.2s}
+#upload-area.drag-over{background:#cde4ff;border-color:var(--rombo-dark)}
+#upload-area svg{color:var(--rombo-blue)}
+#upload-area p{margin-top:10px;color:var(--muted)}
+#upload-btn{margin-top:16px;background:var(--rombo-blue);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:1rem;cursor:pointer;transition:.15s}
+#upload-btn:hover{background:var(--rombo-dark)}
+#file-input{display:none}
+#loading-overlay{display:none;text-align:center;padding:32px}
+.spinner{width:48px;height:48px;border:5px solid var(--border);border-top-color:var(--rombo-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+#error-msg{background:#fff0f2;border:1px solid var(--rejected);color:var(--rejected);border-radius:8px;padding:12px 16px;margin-top:12px;display:none}
+/* KPIs */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.kpi-card{background:var(--card);border-radius:var(--radius);padding:20px 18px;box-shadow:0 2px 8px rgba(0,0,0,.06);border-left:4px solid var(--rombo-blue)}
+.kpi-card.green{border-left-color:var(--approved)}
+.kpi-card.red{border-left-color:var(--rejected)}
+.kpi-card.warn{border-left-color:var(--warning)}
+.kpi-label{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.kpi-value{font-size:1.7rem;font-weight:700;color:var(--rombo-dark)}
+.kpi-sub{font-size:.82rem;color:var(--muted);margin-top:4px}
+/* Cards */
+.card{background:var(--card);border-radius:var(--radius);padding:22px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:16px}
+/* Filters */
+.filters{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.filters label{font-size:.85rem;color:var(--muted);font-weight:600}
+.filters select{border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:.9rem;background:#fff;color:var(--text);cursor:pointer}
+/* Pivot table */
+.pivot-scroll{overflow-x:auto;max-height:420px;overflow-y:auto}
+table.pivot{width:100%;border-collapse:collapse;font-size:.82rem}
+table.pivot th{background:var(--rombo-dark);color:#fff;padding:8px 10px;text-align:center;position:sticky;top:0;z-index:2;white-space:nowrap}
+table.pivot th:first-child{text-align:left}
+table.pivot td{padding:7px 10px;text-align:center;border-bottom:1px solid var(--border)}
+table.pivot tr:nth-child(even) td{background:#f7f9fd}
+table.pivot td:first-child{text-align:left;font-weight:700;color:var(--rombo-dark)}
+table.pivot td.total-col{font-weight:700;background:#e8f0ff!important}
+/* Charts */
+.chart-wrap{position:relative;height:320px;width:100%}
+.chart-wrap-sm{position:relative;height:260px;width:100%}
+/* Stats box */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}
+.stat-box{background:var(--bg);border-radius:10px;padding:14px 16px;border:1px solid var(--border)}
+.stat-box .sv{font-size:1.4rem;font-weight:700;color:var(--rombo-blue)}
+.stat-box .sl{font-size:.8rem;color:var(--muted);margin-top:3px}
+/* Tables */
+table.data-table{width:100%;border-collapse:collapse;font-size:.82rem}
+table.data-table th{background:var(--rombo-blue);color:#fff;padding:8px 10px;text-align:left}
+table.data-table td{padding:7px 10px;border-bottom:1px solid var(--border)}
+table.data-table tr:hover td{background:#f0f6ff}
+.badge{display:inline-block;border-radius:12px;padding:2px 10px;font-size:.75rem;font-weight:700}
+.badge-blue{background:#dbeeff;color:var(--rombo-blue)}
+.badge-green{background:#d4f7ee;color:#009970}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:700px){.two-col{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><polygon points="18,4 34,28 2,28" fill="#3B9BF0" opacity=".9"/><polygon points="18,12 28,28 8,28" fill="#fff" opacity=".25"/></svg>
+  <h1>Dashboard Créditos Rombo</h1>
+  <span id="header-badge">Sin datos cargados</span>
+</header>
+<main>
+<!-- SECTION 0: Upload -->
+<div class="section" id="sec-upload">
+  <div class="section-title">Cargar Datos</div>
+  <div id="upload-area" ondragover="ev.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDrop(event)">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg>
+    <p>Arrastra aquí el archivo <strong>Sellos Financieros Todos.xlsx</strong> o haz clic en el botón</p>
+    <button id="upload-btn" onclick="document.getElementById('file-input').click()">📂 Seleccionar archivo Excel</button>
+    <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleFile(this.files[0])">
+  </div>
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-msg" style="color:var(--muted);font-size:.95rem">Cargando archivo...</div>
+  </div>
+  <div id="error-msg"></div>
+</div>
+
+<!-- SECTION 1: KPIs -->
+<div class="section" id="sec-kpis" style="display:none">
+  <div class="section-title">Indicadores Clave (KPIs)</div>
+  <div class="kpi-grid" id="kpi-grid"></div>
+</div>
+
+<!-- SECTION 2: Pivot Table -->
+<div class="section" id="sec-pivot" style="display:none">
+  <div class="section-title">Tabla Dinámica de Métodos de Pago</div>
+  <div class="card">
+    <div class="filters">
+      <label>Tipo Estudiante:</label>
+      <select id="filt-tipo" onchange="renderPivotTable()">
+        <option value="">Todos</option>
+        <option value="NUEVO">Nuevo</option>
+        <option value="ANTIGUO">Antiguo</option>
+        <option value="REINGRESO">Reingreso</option>
+      </select>
+      <label>Nivel:</label>
+      <select id="filt-nivel" onchange="renderPivotTable()"></select>
+    </div>
+    <div class="pivot-scroll" id="pivot-container"></div>
+  </div>
+  <div class="card">
+    <div style="font-weight:700;color:var(--rombo-dark);margin-bottom:12px">Distribución por Año y Método de Pago</div>
+    <div class="chart-wrap"><canvas id="chart-pivot"></canvas></div>
+  </div>
+</div>
+
+<!-- SECTION 3: Growth Model -->
+<div class="section" id="sec-growth" style="display:none">
+  <div class="section-title">Modelo Estadístico y Predicción de Crecimiento</div>
+
+  <!-- Controls -->
+  <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:18px;padding:14px 16px;background:#F8FAFD;border-radius:10px;border:1px solid var(--border)">
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Modelo proyección histórica</div>
+      <div class="btn-group" id="growth-method">
+        <button class="active" data-val="linear">Regresión lineal</button>
+        <button data-val="cagr">CAGR</button>
+        <button data-val="both">Comparar ambos</button>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Horizonte futuro</div>
+      <div class="btn-group" id="growth-horizon">
+        <button class="active" data-val="2">+2 años</button>
+        <button data-val="3">+3 años</button>
+        <button data-val="5">+5 años</button>
+      </div>
+    </div>
+    <div style="margin-left:auto;font-size:12px;color:var(--muted);line-height:1.5;max-width:260px">
+      📌 Base: <b>2021–2025</b> (años completos). El modelo excluye años parciales de la regresión.
+    </div>
+  </div>
+
+  <!-- Stats summary row -->
+  <div class="stats-grid" id="growth-stats" style="margin-bottom:16px"></div>
+
+  <!-- Historical trend chart (2021-2025 + projection) -->
+  <div class="card" style="margin-bottom:16px">
+    <div style="font-weight:700;color:var(--rombo-dark);font-size:14px;margin-bottom:4px">📈 Crecimiento Histórico Rombo + Proyección (Base: años completos)</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="hist-chart-sub">Línea sólida = datos reales 2021–2025 · Punteada = proyección</div>
+    <div class="chart-wrap" style="height:300px"><canvas id="chart-total"></canvas></div>
+  </div>
+
+  <!-- Two lower charts -->
+  <div class="two-col" style="margin-bottom:20px">
+    <div class="card">
+      <div style="font-weight:700;color:var(--rombo-dark);font-size:14px;margin-bottom:12px">📊 % Participación Rombo + Proyección</div>
+      <div class="chart-wrap"><canvas id="chart-share"></canvas></div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;color:var(--rombo-dark);font-size:14px;margin-bottom:12px">💰 Valor Financiado Rombo + Proyección</div>
+      <div class="chart-wrap"><canvas id="chart-value"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Cohort comparison 2025 vs 2026 -->
+  <div class="card" style="margin-bottom:16px">
+    <div style="font-weight:700;color:var(--rombo-dark);font-size:14px;margin-bottom:4px">🔄 Crecimiento por Cohorte — 2025 vs 2026</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Barras sólidas = datos reales · Barras rayadas = proyección con crecimiento promedio de cohortes cerradas</div>
+    <div class="chart-wrap" style="height:260px"><canvas id="chart-cohort-growth"></canvas></div>
+  </div>
+
+  <!-- Cohort detail table -->
+  <div class="card">
+    <div style="font-weight:700;color:var(--rombo-dark);font-size:14px;margin-bottom:12px">📋 Detalle Crecimiento por Cohorte 2025 → 2026</div>
+    <div style="overflow-x:auto"><table class="data-table" id="cohort-growth-table"></table></div>
+  </div>
+</div>
+
+<!-- SECTION 4: Recurrence -->
+<div class="section" id="sec-recurrence" style="display:none">
+  <div class="section-title">Análisis de Recurrencia Rombo</div>
+  <div class="stats-grid" id="recurrence-stats"></div>
+  <div class="two-col" style="margin-top:16px">
+    <div class="card">
+      <div style="font-weight:700;color:var(--rombo-dark);margin-bottom:12px">Distribución de Períodos por Estudiante</div>
+      <div class="chart-wrap-sm"><canvas id="chart-recurrence"></canvas></div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;color:var(--rombo-dark);margin-bottom:12px">Top 20 Estudiantes más Leales</div>
+      <div style="overflow-x:auto;max-height:280px;overflow-y:auto">
+        <table class="data-table" id="recurrence-table"></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 5: Simultaneous -->
+<div class="section" id="sec-simult" style="display:none">
+  <div class="section-title">Créditos Simultáneos en la misma Cohorte</div>
+  <div class="stats-grid" id="simult-stats"></div>
+  <div class="two-col" style="margin-top:16px">
+    <div class="card">
+      <div style="font-weight:700;color:var(--rombo-dark);margin-bottom:12px">Créditos Simultáneos por Nivel</div>
+      <div class="chart-wrap-sm"><canvas id="chart-simult"></canvas></div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;color:var(--rombo-dark);margin-bottom:12px">Top Casos Simultáneos</div>
+      <div style="overflow-x:auto;max-height:280px;overflow-y:auto">
+        <table class="data-table" id="simult-table"></table>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+'use strict';
+let allData = [];
+const charts = {};
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function fmt(n){return n==null?'—':Number(n).toLocaleString('es-CO')}
+function fmtCOP(n){if(n==null)return'—';if(n>=1e9)return'$'+(n/1e9).toFixed(2)+'B';if(n>=1e6)return'$'+(n/1e6).toFixed(1)+'M';return'$'+fmt(n)}
+function pct(a,b){return b?((a/b)*100).toFixed(1)+'%':'0%'}
+
+function findCol(headers,...names){
+  for(const name of names){
+    const i=headers.indexOf(name);if(i>=0)return i;
+  }
+  for(const name of names){
+    const nl=name.toLowerCase();
+    const i=headers.findIndex(h=>h!=null&&h.toString().toLowerCase()===nl);if(i>=0)return i;
+  }
+  for(const name of names){
+    const nl=name.toLowerCase();
+    const i=headers.findIndex(h=>h!=null&&h.toString().toLowerCase().includes(nl));if(i>=0)return i;
+  }
+  return -1;
+}
+
+function normalizeFP(fp){
+  const m=(fp||'').toString().toUpperCase().trim();
+  if(m==='ESTUDIA YA')return'Estudia Ya (Rombo)';
+  if(m==='DE CONTADO')return'De Contado';
+  if(m.includes('COOPFUTURO'))return'Coopfuturo';
+  if(m.includes('FINCOMERCIO'))return'Fincomercio';
+  if(m==='ICETEX')return'ICETEX';
+  if(m.includes('EDUPOL'))return'Edupol';
+  if(m.includes('FINKY'))return'Finky';
+  if(!m||m===''||m==='NULL')return'Sin datos';
+  return fp;
+}
+
+function classifyNivel(nivel){
+  const n=(nivel||'').toString().toUpperCase().trim();
+  if(n==='PROFESIONAL'||n==='TECNICO'||n==='TECNOLOGICO')return'Pregrado/Técnico';
+  if(n==='ESPECIALIZACION')return'Especialización';
+  if(n==='MAESTRIA')return'Maestría';
+  if(n.includes('CONTINUA')||n.includes('DIPLOMADO'))return'Ed. Continua';
+  return'Otro';
+}
+
+function linReg(xs,ys){
+  const n=xs.length;
+  const mx=xs.reduce((a,b)=>a+b,0)/n;
+  const my=ys.reduce((a,b)=>a+b,0)/n;
+  let num=0,den=0;
+  for(let i=0;i<n;i++){num+=(xs[i]-mx)*(ys[i]-my);den+=(xs[i]-mx)**2;}
+  const m=den?num/den:0;
+  const b=my-m*mx;
+  const yHat=xs.map(x=>m*x+b);
+  const ssTot=ys.reduce((a,y)=>a+(y-my)**2,0);
+  const ssRes=ys.reduce((a,y,i)=>a+(y-yHat[i])**2,0);
+  const r2=ssTot?1-ssRes/ssTot:1;
+  return{m,b,r2,predict:x=>m*x+b};
+}
+
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+function showError(msg){const el=document.getElementById('error-msg');el.textContent=msg;el.style.display='block';}
+function hideError(){document.getElementById('error-msg').style.display='none';}
+
+// ── File handling ───────────────────────────────────────────────────────────
+function handleDrop(ev){ev.preventDefault();document.getElementById('upload-area').classList.remove('drag-over');const f=ev.dataTransfer.files[0];if(f)handleFile(f);}
+
+function handleFile(file){
+  if(!file)return;
+  hideError();
+  document.getElementById('loading-overlay').style.display='block';
+  document.getElementById('upload-area').style.display='none';
+  setMsg('Leyendo archivo...');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    setTimeout(()=>{
+      try{
+        setMsg('Procesando hojas de Excel...');
+        const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+        setTimeout(()=>{
+          try{
+            allData=parseAllSheets(wb);
+            document.getElementById('loading-overlay').style.display='none';
+            document.getElementById('header-badge').textContent=`Datos: 2021-2026 | ${fmt(allData.length)} registros`;
+            renderAll();
+          }catch(err){showParseError(err);}
+        },50);
+      }catch(err){showParseError(err);}
+    },20);
+  };
+  reader.onerror=()=>showParseError(new Error('No se pudo leer el archivo'));
+  reader.readAsArrayBuffer(file);
+}
+
+function showParseError(err){
+  document.getElementById('loading-overlay').style.display='none';
+  document.getElementById('upload-area').style.display='block';
+  showError('Error al procesar: '+err.message);
+}
+
+function setMsg(m){document.getElementById('loading-msg').textContent=m;}
+
+function parseAllSheets(wb){
+  const rows=[];
+  const yearSheets=wb.SheetNames.filter(n=>/^202[0-9]$/.test(n.trim()));
+  const sheets=yearSheets.length>0?yearSheets:wb.SheetNames;
+  for(const sname of sheets){
+    const ws=wb.Sheets[sname];
+    const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    if(!raw||raw.length<2)continue;
+    const headers=(raw[0]||[]).map(h=>h!=null?h.toString().trim():'');
+    const fpI=findCol(headers,'FORMA_PAGO','Medio de pago','MEDIO_PAGO','FormaPago');
+    const idI=findCol(headers,'IDBANNER','ID_BANNER','IdBanner','ID','CODIGO_ESTUDIANTE','id_banner');
+    const nivI=findCol(headers,'NIVEL','Nivel','nivel');
+    const perI=findCol(headers,'PERIODO','Periodo','periodo','PERIOD');
+    const cohI=findCol(headers,'Cohorte','COHORTE','cohorte');
+    const ordNumI=findCol(headers,'NUMERO_ORDEN','Numero_Orden','NUMERO ORDEN','NumeroOrden');
+    const ordValI=findCol(headers,'VALOR_ORDEN','Valor_Orden','VALOR ORDEN','ValorOrden','VALOR','Valor');
+    const progI=findCol(headers,'PROGRAMA','Programa','programa');
+    const tipoI=findCol(headers,'TIPOESTUDIANTE','TIPO_ESTUDIANTE','TipoEstudiante','Tipo','tipo_estudiante');
+    const selloI=findCol(headers,'SELLO','Sello','sello');
+    const modI=findCol(headers,'MODALIDAD','Modalidad','modalidad');
+    const facI=findCol(headers,'FACULTAD','Facultad','facultad');
+    const year=parseInt(sname.trim())||0;
+    for(let r=1;r<raw.length;r++){
+      const row=raw[r];
+      if(!row||row.every(c=>c===''||c==null))continue;
+      const fp=fpI>=0?row[fpI]:'';
+      rows.push({
+        year,
+        FORMA_PAGO:fp,
+        FP_NORM:normalizeFP(fp),
+        IDBANNER:idI>=0?row[idI]:'',
+        NIVEL:nivI>=0?row[nivI]:'',
+        PERIODO:perI>=0?row[perI]:'',
+        Cohorte:cohI>=0?row[cohI]:'',
+        NUMERO_ORDEN:ordNumI>=0?row[ordNumI]:'',
+        VALOR_ORDEN:ordValI>=0?parseFloat(row[ordValI])||0:0,
+        PROGRAMA:progI>=0?row[progI]:'',
+        TIPOESTUDIANTE:tipoI>=0?row[tipoI]:'',
+        SELLO:selloI>=0?row[selloI]:'',
+        MODALIDAD:modI>=0?row[modI]:'',
+        FACULTAD:facI>=0?row[facI]:''
+      });
+    }
+  }
+  return rows;
+}
+
+// ── Render All ──────────────────────────────────────────────────────────────
+function renderAll(){
+  initGrowthControls();
+  ['sec-kpis','sec-pivot','sec-growth','sec-recurrence','sec-simult'].forEach(id=>{
+    document.getElementById(id).style.display='block';
+  });
+  renderKPIs();
+  setTimeout(()=>{
+    setMsg('Construyendo tabla dinámica...');
+    renderPivotFilters();
+    renderPivotTable();
+    setTimeout(()=>{
+      renderGrowthModel();
+      setTimeout(()=>{
+        renderRecurrence();
+        setTimeout(()=>{renderSimultaneous();},80);
+      },80);
+    },80);
+  },80);
+}
+
+// ── Section 1: KPIs ─────────────────────────────────────────────────────────
+function renderKPIs(){
+  const total=allData.length;
+  const rombo=allData.filter(r=>(r.FORMA_PAGO||'').toString().toUpperCase().trim()==='ESTUDIA YA');
+  const contado=allData.filter(r=>(r.FORMA_PAGO||'').toString().toUpperCase().trim()==='DE CONTADO');
+  const otras=allData.filter(r=>{const m=(r.FORMA_PAGO||'').toString().toUpperCase().trim();return m!=='ESTUDIA YA'&&m!=='DE CONTADO';});
+  const valorRombo=rombo.reduce((s,r)=>s+r.VALOR_ORDEN,0);
+  const uniqueRombo=new Set(rombo.map(r=>r.IDBANNER)).size;
+  const cards=[
+    {label:'Total Matrículas',value:fmt(total),sub:'Todos los registros',cls:''},
+    {label:'Financiadas por Rombo',value:fmt(rombo.length),sub:pct(rombo.length,total)+' del total',cls:'green'},
+    {label:'Otras Entidades',value:fmt(otras.length),sub:pct(otras.length,total)+' del total',cls:'warn'},
+    {label:'De Contado',value:fmt(contado.length),sub:pct(contado.length,total)+' del total',cls:''},
+    {label:'Estudiantes Únicos Rombo',value:fmt(uniqueRombo),sub:'IDBANNER distintos',cls:''},
+  ];
+  document.getElementById('kpi-grid').innerHTML=cards.map(c=>`
+    <div class="kpi-card ${c.cls}">
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-value">${c.value}</div>
+      <div class="kpi-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+// ── Section 2: Pivot Table ───────────────────────────────────────────────────
+function renderPivotFilters(){
+  const niveles=[...new Set(allData.map(r=>(r.NIVEL||'').toString().trim()).filter(Boolean))].sort();
+  const sel=document.getElementById('filt-nivel');
+  sel.innerHTML='<option value="">Todos</option>'+niveles.map(n=>`<option value="${n}">${n}</option>`).join('');
+}
+
+function renderPivotTable(){
+  const tipo=document.getElementById('filt-tipo').value;
+  const nivel=document.getElementById('filt-nivel').value;
+  let data=allData;
+  if(tipo)data=data.filter(r=>(r.TIPOESTUDIANTE||'').toString().toUpperCase().trim()===tipo);
+  if(nivel)data=data.filter(r=>(r.NIVEL||'').toString().trim()===nivel);
+
+  const years=[...new Set(data.map(r=>r.year))].filter(y=>y>2000).sort();
+  const fpSet=new Set(data.map(r=>r.FP_NORM));
+  const fpCols=[...fpSet].sort((a,b)=>{
+    if(a==='Estudia Ya (Rombo)')return-1;if(b==='Estudia Ya (Rombo)')return 1;
+    if(a==='De Contado')return-1;if(b==='De Contado')return 1;
+    return a.localeCompare(b);
+  });
+
+  // Build pivot
+  const pivot={};
+  const yearTotals={};
+  years.forEach(y=>{pivot[y]={};yearTotals[y]=0;fpCols.forEach(fp=>{pivot[y][fp]=0;});});
+  data.forEach(r=>{
+    if(pivot[r.year]!=null){pivot[r.year][r.FP_NORM]=(pivot[r.year][r.FP_NORM]||0)+1;yearTotals[r.year]++;}
+  });
+
+  // Max Rombo for heatmap
+  const maxRombo=Math.max(...years.map(y=>pivot[y]['Estudia Ya (Rombo)']||0),1);
+
+  let html='<table class="pivot"><thead><tr><th>Año</th>'+fpCols.map(fp=>`<th>${fp}</th>`).join('')+'<th>Total</th></tr></thead><tbody>';
+  years.forEach(y=>{
+    const tot=yearTotals[y];
+    html+=`<tr><td>${y}</td>`;
+    fpCols.forEach(fp=>{
+      const cnt=pivot[y][fp]||0;
+      const p=tot?((cnt/tot)*100).toFixed(1):0;
+      let style='';
+      if(fp==='Estudia Ya (Rombo)'&&cnt>0){
+        const intensity=Math.round((cnt/maxRombo)*180);
+        style=`background:rgba(26,94,168,${(cnt/maxRombo).toFixed(2)});color:${intensity>90?'#fff':'var(--text)'}`;
+      }
+      html+=`<td style="${style}">${cnt?`${fmt(cnt)}<br><small>${p}%</small>`:'—'}</td>`;
+    });
+    html+=`<td class="total-col">${fmt(tot)}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('pivot-container').innerHTML=html;
+
+  // Pivot bar chart
+  destroyChart('chart-pivot');
+  const colors=['#1A5EA8','#3B9BF0','#00C48C','#FFB547','#FF5C6C','#9b59b6','#e67e22','#1abc9c','#e74c3c','#95a5a6'];
+  const ctx=document.getElementById('chart-pivot').getContext('2d');
+  charts['chart-pivot']=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:years.map(String),
+      datasets:fpCols.map((fp,i)=>({
+        label:fp,
+        data:years.map(y=>pivot[y][fp]||0),
+        backgroundColor:colors[i%colors.length],
+        borderRadius:3
+      }))
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+      scales:{x:{stacked:false},y:{stacked:false,ticks:{callback:v=>fmt(v)}}}
+    }
+  });
+}
+
+// ── Section 3: Growth Model ──────────────────────────────────────────────────
+// ── Growth state ─────────────────────────────────────────────────────────────
+let growthMethod='linear', growthHorizon=2;
+
+function initGrowthControls(){
+  [['growth-method','growthMethod'],['growth-horizon','growthHorizon']].forEach(([id,varName])=>{
+    const grp=document.getElementById(id); if(!grp)return;
+    grp.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        grp.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        if(id==='growth-method') growthMethod=btn.dataset.val;
+        if(id==='growth-horizon') growthHorizon=parseInt(btn.dataset.val);
+        renderGrowthModel();
+      });
+    });
+  });
+}
+
+function cagrProject(values,horizon){
+  const n=values.length; if(n<2)return Array(horizon).fill(values[n-1]||0);
+  const s=values[0]||1, e=values[n-1]||1;
+  const cagr=Math.pow(e/s,1/(n-1))-1;
+  return Array.from({length:horizon},(_,i)=>Math.round(e*Math.pow(1+cagr,i+1)));
+}
+
+function renderGrowthModel(){
+  const currentYear=new Date().getFullYear();
+
+  // ── Build per-year + per-cohort aggregates ───────────────────────────────
+  const yearMap={},romboMap={},valueMap={},periodMap={};
+  const cohortYear={}; // cohortYear[cohorte][year] = count
+  allData.forEach(r=>{
+    const y=r.year; if(!y||y<2000)return;
+    yearMap[y]=(yearMap[y]||0)+1;
+    const p=String(r.PERIODO||'');
+    if(p.length>=6){const m=parseInt(p.substring(4,6)||0);if(m>0){if(!periodMap[y])periodMap[y]=new Set();periodMap[y].add(m);}}
+    const fp=(r.FORMA_PAGO||'').toString().toUpperCase().trim();
+    if(fp==='ESTUDIA YA'){
+      romboMap[y]=(romboMap[y]||0)+1;
+      valueMap[y]=(valueMap[y]||0)+(r.VALOR_ORDEN||0);
+      const coh=String(r.cohorte||r.Cohorte||'').trim();
+      if(coh){
+        if(!cohortYear[coh])cohortYear[coh]={};
+        cohortYear[coh][y]=(cohortYear[coh][y]||0)+1;
+      }
+    }
+  });
+
+  // ── Historical series: ONLY complete years (exclude current partial year) ─
+  const allYears=Object.keys(yearMap).map(Number).filter(y=>y>2000).sort();
+  const isPartial=y=>(periodMap[y]&&periodMap[y].size<10)||y===currentYear;
+  const completeYears=allYears.filter(y=>!isPartial(y));
+
+  const totals=completeYears.map(y=>yearMap[y]||0);
+  const romboC=completeYears.map(y=>romboMap[y]||0);
+  const romboV=completeYears.map(y=>valueMap[y]||0);
+  const shares=completeYears.map((y,i)=>totals[i]?+((romboC[i]/totals[i])*100).toFixed(2):0);
+
+  // ── Regression (complete years only) ─────────────────────────────────────
+  const xs=completeYears.map((_,i)=>i);
+  const regTotal=linReg(xs,totals);
+  const regRombo=linReg(xs,romboC);
+  const regShare=linReg(xs,shares);
+  const regVal  =linReg(xs,romboV);
+  const lastIdx =completeYears.length-1;
+  const lastYear=completeYears[lastIdx];
+
+  const cagrTotal=cagrProject(totals,growthHorizon);
+  const cagrRombo=cagrProject(romboC,growthHorizon);
+  const cagrShare=cagrProject(shares,growthHorizon);
+  const cagrVal  =cagrProject(romboV,growthHorizon);
+
+  const projYears=Array.from({length:growthHorizon},(_,i)=>lastYear+i+1);
+  // Filter out projection years that already have real partial data
+  const chartProjYears=projYears.filter(y=>!allYears.includes(y)||isPartial(y));
+  const extYears=[...completeYears,...chartProjYears];
+  const projOffset=extYears.length-chartProjYears.length;
+
+  function projSeries(reg,cagr){
+    const lin=projYears.map((_,i)=>Math.max(0,Math.round(reg.predict(lastIdx+i+1))));
+    const cg=cagr;
+    if(growthMethod==='linear')return [{pts:lin,label:'Proyección lineal',color:'#FF5C6C'}];
+    if(growthMethod==='cagr')  return [{pts:cg, label:'Proyección CAGR',  color:'#FFB547'}];
+    return [{pts:lin,label:'Reg. lineal',color:'#FF5C6C'},{pts:cg,label:'CAGR',color:'#FFB547'}];
+  }
+
+  // ── Avg growth (complete years) ───────────────────────────────────────────
+  let gs=0,gc=0;
+  for(let i=1;i<totals.length;i++){if(totals[i-1]>0){gs+=(totals[i]-totals[i-1])/totals[i-1]*100;gc++;}}
+  const avgGrowth=gc?gs/gc:0;
+  let vs=0,vc=0;
+  for(let i=1;i<romboC.length;i++){if(romboC[i-1]>0){vs+=(romboC[i]-romboC[i-1])/romboC[i-1]*100;vc++;}}
+  const avgRomboGrowth=vc?vs/vc:0;
+
+  const p1Tot=Math.round(regTotal.predict(lastIdx+1));
+  const p1Rom=Math.round(regRombo.predict(lastIdx+1));
+  const p1Sh =+Math.min(100,Math.max(0,regShare.predict(lastIdx+1))).toFixed(1);
+  const p1Val=Math.round(regVal.predict(lastIdx+1));
+
+  document.getElementById('hist-chart-sub').textContent=
+    `Años completos: ${completeYears.join(', ')} · Modelo: ${growthMethod==='both'?'Reg. lineal + CAGR':growthMethod==='cagr'?'CAGR':'Regresión lineal'} · Horizonte: +${growthHorizon} años`;
+
+  // ── Stats cards ───────────────────────────────────────────────────────────
+  document.getElementById('growth-stats').innerHTML=`
+    <div class="stat-box"><div class="sv">${avgGrowth.toFixed(1)}%</div><div class="sl">Crec. promedio anual total (${completeYears[0]}–${lastYear})</div></div>
+    <div class="stat-box"><div class="sv">${avgRomboGrowth.toFixed(1)}%</div><div class="sl">Crec. promedio anual Rombo</div></div>
+    <div class="stat-box"><div class="sv">${fmt(p1Tot)}</div><div class="sl">Matrículas proyectadas ${projYears[0]}</div></div>
+    <div class="stat-box"><div class="sv">${fmt(p1Rom)}</div><div class="sl">Rombo proyectado ${projYears[0]}</div></div>
+    <div class="stat-box"><div class="sv">${p1Sh}%</div><div class="sl">% Rombo estimado ${projYears[0]}</div></div>
+    <div class="stat-box"><div class="sv">${fmtCOP(p1Val)}</div><div class="sl">Valor Rombo estimado ${projYears[0]}</div></div>
+    <div class="stat-box"><div class="sv">R²=${regTotal.r2.toFixed(2)}</div><div class="sl">Ajuste regresión (matrículas)</div></div>
+    <div class="stat-box"><div class="sv">R²=${regRombo.r2.toFixed(2)}</div><div class="sl">Ajuste regresión (Rombo)</div></div>`;
+
+  // ── Chart: Historical + projection ───────────────────────────────────────
+  const projR=projSeries(regRombo,cagrRombo).map(p=>({
+    label:p.label,data:[...Array(projOffset).fill(null),...p.pts],
+    borderColor:p.color,borderDash:[7,4],pointRadius:5,tension:.3,fill:false,borderWidth:2.5
+  }));
+  destroyChart('chart-total');
+  charts['chart-total']=new Chart(document.getElementById('chart-total'),{
+    type:'line',
+    data:{labels:extYears.map(String),datasets:[
+      {label:'Total matrículas (real)',data:[...totals,...Array(chartProjYears.length).fill(null)],borderColor:'#1A5EA8',backgroundColor:'rgba(26,94,168,.08)',fill:true,pointRadius:5,tension:.3,borderWidth:2.5},
+      {label:'Rombo (real)',data:[...romboC,...Array(chartProjYears.length).fill(null)],borderColor:'#00C48C',backgroundColor:'rgba(0,196,140,.08)',fill:true,pointRadius:5,tension:.3,borderWidth:2.5},
+      ...projR
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},scales:{y:{ticks:{callback:v=>fmt(v)}}}}
+  });
+
+  destroyChart('chart-share');
+  charts['chart-share']=new Chart(document.getElementById('chart-share'),{
+    type:'line',
+    data:{labels:extYears.map(String),datasets:[
+      {label:'% Rombo (real)',data:[...shares,...Array(chartProjYears.length).fill(null)],borderColor:'#00C48C',backgroundColor:'rgba(0,196,140,.12)',fill:true,pointRadius:5,tension:.3,borderWidth:2.5},
+      ...projSeries(regShare,cagrShare).map(p=>({label:p.label,data:[...Array(projOffset).fill(null),...p.pts.map(v=>+Math.min(100,Math.max(0,v)).toFixed(1))],borderColor:p.color,borderDash:[7,4],pointRadius:4,tension:.3,fill:false,borderWidth:2}))
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},scales:{y:{ticks:{callback:v=>v+'%'},suggestedMax:70}}}
+  });
+
+  destroyChart('chart-value');
+  charts['chart-value']=new Chart(document.getElementById('chart-value'),{
+    type:'line',
+    data:{labels:extYears.map(String),datasets:[
+      {label:'Valor Rombo (real)',data:[...romboV,...Array(chartProjYears.length).fill(null)],borderColor:'#A259FF',backgroundColor:'rgba(162,89,255,.1)',fill:true,pointRadius:5,tension:.3,borderWidth:2.5},
+      ...projSeries(regVal,cagrVal).map(p=>({label:p.label,data:[...Array(projOffset).fill(null),...p.pts],borderColor:p.color,borderDash:[7,4],pointRadius:4,tension:.3,fill:false,borderWidth:2}))
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},scales:{y:{ticks:{callback:v=>fmtCOP(v)}}}}
+  });
+
+    // ── Cohort growth: 2025 vs 2026 + Metas 2026 ────────────────────────────
+  const baseYear=String(lastYear);   // 2025 (último año completo)
+  const compYear=String(lastYear+1); // 2026
+  const PROJ_GROWTH = 0.10;          // +10% sobre 2025 real para cohortes en ejecución
+
+  // Metas 2026 oficiales Rombo – Iberoamericana
+  const METAS_2026 = {
+    'Cohorte 1': 11883, 'Cohorte 2': 1372, 'Cohorte 3': 5675,
+    'Cohorte 4': 7731,  'Cohorte 5': 4795, 'Cohorte 6': 202
+  };
+  const META_TOTAL_2026 = 31657;
+
+  // Cohortes presentes en 2025, ordenadas numéricamente
+  const cohorts = Object.keys(cohortYear)
+    .filter(c => cohortYear[c][baseYear] > 0)
+    .sort((a,b) => {
+      const na=parseInt(a.replace(/\D/g,''))||999, nb=parseInt(b.replace(/\D/g,''))||999;
+      return na - nb;
+    });
+
+  // Cohortes oficialmente cerradas en 2026 (Cohorte 1 y 2 ya cerraron)
+  const COHORTS_CLOSED = new Set(['Cohorte 1','Cohorte 2']);
+
+  // Por cohorte: real 2025, real 2026 (si cerró), proyección +10%, meta 2026
+  const cData = cohorts.map(c => {
+    const real2025 = cohortYear[c][baseYear] || 0;
+    const real2026 = cohortYear[c][compYear]  || 0;
+    const isClosed = COHORTS_CLOSED.has(c);   // solo cerradas las explícitamente marcadas
+    const proj2026 = isClosed ? null : Math.round(real2025 * (1 + PROJ_GROWTH));
+    const effective= isClosed ? real2026 : proj2026;
+    const meta     = METAS_2026[c] || null;
+    return { c, real2025, real2026, isClosed, proj2026, effective, meta };
+  });
+
+  // ── Gráfica de barras: 4 series ─────────────────────────────────────────
+  destroyChart('chart-cohort-growth');
+  charts['chart-cohort-growth'] = new Chart(document.getElementById('chart-cohort-growth'), {
+    type: 'bar',
+    data: {
+      labels: cohorts,
+      datasets: [
+        { label: baseYear+' real',            data: cData.map(d=>d.real2025),                       backgroundColor:'rgba(26,94,168,.75)', borderRadius:5 },
+        { label: compYear+' real (cerrada)',   data: cData.map(d=>d.isClosed?d.real2026:null),       backgroundColor:'rgba(0,196,140,.85)', borderRadius:5 },
+        { label: compYear+' proy. +10%',       data: cData.map(d=>d.isClosed?null:d.proj2026),       backgroundColor:'rgba(255,181,71,.80)', borderRadius:5 },
+        { label: 'Meta '+compYear,             data: cData.map(d=>d.meta),                           backgroundColor:'rgba(255,92,108,.2)', borderColor:'rgba(255,92,108,.85)', borderWidth:2, borderRadius:5 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}} },
+      scales:{ x:{grid:{display:false}}, y:{ticks:{callback:v=>fmt(v)}} }
+    }
+  });
+
+  // ── Tabla detalle ────────────────────────────────────────────────────────
+  const tbl = document.getElementById('cohort-growth-table');
+  const arrowPct = v => v==null?'—': v>=0?`<b style="color:#00C48C">▲ ${v.toFixed(1)}%</b>`:`<b style="color:#FF5C6C">▼ ${Math.abs(v).toFixed(1)}%</b>`;
+  const barHtml  = (pct, color) => `<div style="display:flex;align-items:center;gap:5px"><div style="flex:1;background:#E5E7EB;border-radius:4px;height:8px"><div style="width:${Math.min(100,pct).toFixed(0)}%;background:${color};height:8px;border-radius:4px"></div></div><span style="font-weight:600;font-size:12px">${pct.toFixed(0)}%</span></div>`;
+
+  let rows = `<thead><tr>
+    <th>Cohorte</th><th>2025 real</th><th>Estado</th>
+    <th>2026 real / proyección</th><th>vs 2025</th>
+    <th>Meta 2026</th><th>Brecha</th><th>Cumplimiento</th>
+  </tr></thead><tbody>`;
+
+  let sum25=0, sumEff=0, sumMeta=0;
+  cData.forEach(({ c, real2025, real2026, isClosed, proj2026, effective, meta }) => {
+    sum25   += real2025;
+    sumEff  += effective||0;
+    sumMeta += meta||0;
+    const vs25   = real2025 ? (((effective||0)-real2025)/real2025*100) : null;
+    const brecha = meta!=null ? ((effective||0)-meta) : null;
+    const cumpl  = meta ? ((effective||0)/meta*100) : null;
+    const badge  = isClosed
+      ? `<span style="background:#DCFFF3;color:#0A7A56;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">✅ Cerrada</span>`
+      : `<span style="background:#FFF4DC;color:#7A5500;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600">⏳ En ejecución</span>`;
+    const valHtml= isClosed
+      ? `<b>${fmt(real2026)}</b>`
+      : `<i style="color:#1A5EA8;font-weight:600">${fmt(proj2026)}</i> <small style="color:#888">(+10%)</small>`;
+    const brechaHtml = brecha==null?'—': brecha>=0?`<b style="color:#00C48C">+${fmt(brecha)}</b>`:`<b style="color:#FF5C6C">${fmt(brecha)}</b>`;
+    const cumplColor = cumpl>=100?'#00C48C':cumpl>=85?'#FFB547':'#FF5C6C';
+    rows += `<tr>
+      <td><b>${c}</b></td><td>${fmt(real2025)}</td><td>${badge}</td>
+      <td>${valHtml}</td><td>${arrowPct(vs25)}</td>
+      <td><b>${meta?fmt(meta):'—'}</b></td><td>${brechaHtml}</td>
+      <td>${cumpl!=null?barHtml(cumpl,cumplColor):'—'}</td>
+    </tr>`;
+  });
+
+  const bTotal  = sumEff - META_TOTAL_2026;
+  const cpTotal = META_TOTAL_2026 ? sumEff/META_TOTAL_2026*100 : 0;
+  rows += `<tr style="background:#EEF4FF;font-weight:700">
+    <td>TOTAL</td><td>${fmt(sum25)}</td><td>—</td>
+    <td><b>${fmt(sumEff)}</b></td><td>${arrowPct(sum25?((sumEff-sum25)/sum25*100):null)}</td>
+    <td><b>${fmt(META_TOTAL_2026)}</b></td>
+    <td>${bTotal>=0?`<b style="color:#00C48C">+${fmt(bTotal)}</b>`:`<b style="color:#FF5C6C">${fmt(bTotal)}</b>`}</td>
+    <td>${barHtml(cpTotal, cpTotal>=100?'#00C48C':cpTotal>=85?'#FFB547':'#FF5C6C')}</td>
+  </tr>`;
+
+  tbl.innerHTML = rows + '</tbody>';
+}
+
+// ── Section 4: Recurrence ────────────────────────────────────────────────────
+function renderRecurrence(){
+  const rombo=allData.filter(r=>(r.FORMA_PAGO||'').toString().toUpperCase().trim()==='ESTUDIA YA');
+  const byStudent={};
+  rombo.forEach(r=>{
+    const id=r.IDBANNER;if(!id)return;
+    if(!byStudent[id])byStudent[id]={periods:new Set(),rows:[]};
+    byStudent[id].periods.add(String(r.PERIODO));
+    byStudent[id].rows.push(r);
+  });
+
+  const students=Object.entries(byStudent).map(([id,d])=>{
+    const periods=[...d.periods].sort();
+    return{id,numPeriods:periods.length,firstPeriod:periods[0],lastPeriod:periods[periods.length-1],totalVal:d.rows.reduce((s,r)=>s+r.VALOR_ORDEN,0)};
+  });
+
+  const total=students.length;
+  const loyal=students.filter(s=>s.numPeriods>=2).length;
+  const veryLoyal=students.filter(s=>s.numPeriods>=3).length;
+  const avgPer=(students.reduce((s,r)=>s+r.numPeriods,0)/total||0).toFixed(2);
+
+  // Tasa de renovacion: students whose sorted periods are consecutive (not necessarily by value but appear in 2+ years)
+  let consec=0;
+  students.forEach(s=>{
+    if(s.numPeriods>=2){
+      const ps=[...byStudent[s.id].periods].map(p=>{const y=parseInt(String(p).substring(0,4));const t=parseInt(String(p).substring(4))||1;return y*10+t;}).sort((a,b)=>a-b);
+      for(let i=1;i<ps.length;i++){if(ps[i]-ps[i-1]<=2){consec++;break;}}
+    }
+  });
+
+  document.getElementById('recurrence-stats').innerHTML=`
+    <div class="stat-box"><div class="sv">${fmt(total)}</div><div class="sl">Estudiantes únicos Rombo</div></div>
+    <div class="stat-box"><div class="sv">${fmt(loyal)}</div><div class="sl">Leales (2+ períodos) ${total?((loyal/total)*100).toFixed(1)+'%':''}</div></div>
+    <div class="stat-box"><div class="sv">${fmt(veryLoyal)}</div><div class="sl">Muy leales (3+ períodos) ${total?((veryLoyal/total)*100).toFixed(1)+'%':''}</div></div>
+    <div class="stat-box"><div class="sv">${avgPer}</div><div class="sl">Promedio períodos/estudiante</div></div>
+    <div class="stat-box"><div class="sv">${fmt(consec)}</div><div class="sl">Tasa de renovación (períodos consecutivos)</div></div>`;
+
+  // Distribution
+  const dist={1:0,2:0,3:0,4:0,5:0};
+  students.forEach(s=>{const k=Math.min(s.numPeriods,5);dist[k]++;});
+  destroyChart('chart-recurrence');
+  const cr=document.getElementById('chart-recurrence').getContext('2d');
+  charts['chart-recurrence']=new Chart(cr,{
+    type:'bar',
+    data:{
+      labels:['1 período','2 períodos','3 períodos','4 períodos','5+ períodos'],
+      datasets:[{label:'Estudiantes',data:[dist[1],dist[2],dist[3],dist[4],dist[5]],backgroundColor:['#3B9BF0','#1A5EA8','#0D2B4E','#00C48C','#FFB547'],borderRadius:6}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmt(v)}}}}
+  });
+
+  // Top 20 table
+  const top20=students.sort((a,b)=>b.numPeriods-a.numPeriods).slice(0,20);
+  document.getElementById('recurrence-table').innerHTML=`
+    <thead><tr><th>ID</th><th>Períodos</th><th>Primer Período</th><th>Último Período</th><th>Valor Total</th></tr></thead>
+    <tbody>${top20.map(s=>`<tr><td><span class="badge badge-blue">${s.id}</span></td><td><strong>${s.numPeriods}</strong></td><td>${s.firstPeriod||'—'}</td><td>${s.lastPeriod||'—'}</td><td>${fmtCOP(s.totalVal)}</td></tr>`).join('')}</tbody>`;
+}
+
+// ── Section 5: Simultaneous ──────────────────────────────────────────────────
+function renderSimultaneous(){
+  const rombo=allData.filter(r=>(r.FORMA_PAGO||'').toString().toUpperCase().trim()==='ESTUDIA YA');
+  const key2orders={};
+  rombo.forEach(r=>{
+    const k=String(r.IDBANNER)+'|'+String(r.Cohorte);
+    if(!key2orders[k])key2orders[k]={id:r.IDBANNER,cohorte:r.Cohorte,orders:new Set(),nivel:r.NIVEL,programa:r.PROGRAMA};
+    if(r.NUMERO_ORDEN)key2orders[k].orders.add(String(r.NUMERO_ORDEN));
+  });
+
+  const simult=Object.values(key2orders).filter(d=>d.orders.size>=2).map(d=>({...d,numOrders:d.orders.size,nivelClass:classifyNivel(d.nivel)}));
+
+  const nivelCount={};
+  simult.forEach(s=>{nivelCount[s.nivelClass]=(nivelCount[s.nivelClass]||0)+1;});
+  const mostCommon=Object.entries(nivelCount).sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('simult-stats').innerHTML=`
+    <div class="stat-box"><div class="sv">${fmt(simult.length)}</div><div class="sl">Estudiantes con créditos simultáneos</div></div>
+    <div class="stat-box"><div class="sv">${mostCommon?mostCommon[0]:'—'}</div><div class="sl">Nivel más frecuente ${mostCommon?'('+fmt(mostCommon[1])+')':''}</div></div>
+    <div class="stat-box"><div class="sv">${fmt(simult.reduce((s,r)=>s+r.numOrders,0))}</div><div class="sl">Total órdenes simultáneas</div></div>`;
+
+  // Chart by nivel
+  const nivelLabels=Object.keys(nivelCount).sort();
+  destroyChart('chart-simult');
+  const cs=document.getElementById('chart-simult').getContext('2d');
+  charts['chart-simult']=new Chart(cs,{
+    type:'bar',
+    data:{
+      labels:nivelLabels,
+      datasets:[{label:'Estudiantes c/ créditos simultáneos',data:nivelLabels.map(n=>nivelCount[n]||0),backgroundColor:'#1A5EA8',borderRadius:6}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>fmt(v)}}}}
+  });
+
+  // Top table
+  const top=simult.sort((a,b)=>b.numOrders-a.numOrders).slice(0,30);
+  document.getElementById('simult-table').innerHTML=`
+    <thead><tr><th>ID</th><th>Cohorte</th><th>Órdenes</th><th>Nivel</th><th>Programa</th></tr></thead>
+    <tbody>${top.map(s=>`<tr><td><span class="badge badge-blue">${s.id}</span></td><td>${s.cohorte||'—'}</td><td><strong>${s.numOrders}</strong></td><td><span class="badge badge-green">${s.nivelClass}</span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.programa||'—'}</td></tr>`).join('')}</tbody>`;
+}
+</script>
+</body>
+</html>
